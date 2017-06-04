@@ -5,6 +5,9 @@
 ANSIBLE_FORCE_COLOR=true stdbuf -i0 -o0 -e0 ansible-playbook "${@}" | tee /proc/$$/fd/1 | while IFS='' read -r line; do
 	if [[ "${line}" =~ ^TASK\ \[ ]]; then
 		title="$(echo "${line}" | cut -d'[' -f2 | cut -d']' -f1)"
-		echo -ne '\033k['"${title}"']\033\\'
+		if [[ "${title}" == *" : "* ]]; then
+			title="$(echo "${title}" | awk -F' : ' '{print $2}')"
+		fi
+		echo -ne "\\033k[${title}]\\033\\"
 	fi
 done
