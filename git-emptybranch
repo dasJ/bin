@@ -1,0 +1,12 @@
+#!/bin/bash
+
+# Create a git branch with a single commit that contains nothing.
+
+if [ "${#}" != 1 ]; then
+	echo "Usage: ${0} [branch name]"
+	exit 1
+fi
+
+tree="$(: | git mktree)"
+commit="$(git commit-tree "${tree}" -m "Initial commit")"
+git branch "${1}" "${commit}"
