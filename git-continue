@@ -1,0 +1,23 @@
+#!/bin/sh
+
+# Continues the current git command
+
+git_home="$(git rev-parse --show-toplevel)/.git"
+if [ -f "${git_home}" ]; then
+	# We are in a submodule
+	git_home="$(cat "${git_home}" | cut -d' ' -f2)"
+fi
+
+run() {
+	echo "${@}"
+	"${@}"
+}
+
+if [ -f "${git_home}/CHERRY_PICK_HEAD" ]; then
+	run git cherry-pick --continue
+elif [ -d "${git_home}/rebase-merge" ]; then
+	run git rebase --continue
+else
+	echo "Nothing to continue"
+	exit 255
+fi
