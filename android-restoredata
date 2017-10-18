@@ -1,0 +1,16 @@
+#!/bin/bash
+
+# Restores app data dumped from /data via ADB
+
+if [ "${#}" != 1 ]; then
+	echo 1 argument required
+	exit 125
+fi
+
+o="$(adb shell ls -dl /data/data/${1} | cut -d' ' -f3)"
+g="$(adb shell ls -dl /data/data/${1} | cut -d' ' -f4)"
+
+adb push "${1}" /data/data
+adb shell chown -R "${u}:${g}" /data/data/${1}
+adb shell chcon -Rvh u:object_r:app_data_file:s0:c512,c768 /data/data/${1}
+adb shell setprop ctl.restart zygote

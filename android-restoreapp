@@ -1,0 +1,13 @@
+#!/bin/bash
+
+# Restores an app dumped from /data via ADB
+
+if [ "${#}" != 1 ]; then
+	echo 1 argument required
+	exit 125
+fi
+
+adb push "${1}" /data/app
+adb shell chown -R system:system /data/app/${1}
+adb shell chown system:install /data/app/${1}/oat
+adb shell setprop ctl.restart zygote
