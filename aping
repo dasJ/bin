@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# Monitors output of ping and writes a log to /tmp
+
+if [ "${#}" != 1 ]; then
+	echo "Usage: ${0} [target]" > /dev/stderr
+	exit 1
+fi
+echo "[$(date)] Starting aping" | tee /tmp/aping.${1}.log
+
+n=1
+
+while IFS='' read -r line; do
+	[[ "${line}" =~ ^PING ]] && continue
+	if ! [[ "${line}" =~ 64\ bytes\ from ]]; then
+		echo "[$(date)] Error: ${line}" | tee -a /tmp/aping.log
+		continue
+	fi
+
+	seq_col="$(echo "${line}" | cut -d' ' -f5 | cut -d'=' -f2)"
+	tim_col="$(echo "${line}" | cut -d' ' -f7 | cut -d'=' -f2)"
+	uni_col="$(echo "${line}" | cut -d' ' -f8)"
+	if [ "${seq_col}" != "${n}" ]; then
+		echo "[$(date)] Sequence check failed. Expected ${n}, got ${seq_col}" | tee -a /tmp/aping.${1}.log
+	fi
+	if [ "${uni_col}" != ms ]; then
+		echo "[$(date)] Wrong unit for time at ${seq_col}. Got ${tim_col} ${uni_col}" | tee -a /tmp/aping.${1}.log
+	fi
+	echo $line
+
+	n=$((${seq_col}+1))
+done < <(ping -i 0.2 "${1}")
