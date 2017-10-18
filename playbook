@@ -1,6 +1,13 @@
 #!/bin/bash
 
-# Wrapper around ansible-playbook that sets the terminal's title
+# Wrapper around ansible-playbook that sets the terminal's title and shows notifications
+
+tit='Ansible Playbook'
+ico=~/Documents/Pictures/ansible.png
+pb="$(basename "${@: -1}")"
+
+# Initial notification
+notid="$(dunstify --printid -t 500 -I "${ico}" --appname "${tit}" "${pb}" 'Starting')"
 
 ANSIBLE_FORCE_COLOR=true stdbuf -i0 -o0 -e0 ansible-playbook "${@}" | tee /proc/$$/fd/1 | while IFS='' read -r line; do
 	if [[ "${line}" =~ ^TASK\ \[ ]]; then
@@ -9,5 +16,8 @@ ANSIBLE_FORCE_COLOR=true stdbuf -i0 -o0 -e0 ansible-playbook "${@}" | tee /proc/
 			title="$(echo "${title}" | awk -F' : ' '{print $2}')"
 		fi
 		echo -ne "\\033k[${title}]\\033\\"
+		dunstify -r "${notid}" -t 500 -I "${ico}" --appname "${tit}" "${pb}" "${title}"
 	fi
 done
+
+dunstify -r "${notid}" -t 10 -I "${ico}" --appname "${tit}" "${pb}" Done
