@@ -1,0 +1,11 @@
+#!/bin/bash
+
+[ -z "${TMUX}" ] && TMUX="${OUTERTMUX}"
+export TMUX
+
+tmux splitw
+
+while :; do
+	task rc.context= 'in'
+	inotifywait ~/.task --recursive -e CREATE -e MODIFY -e MOVED_TO -e MOVED_FROM -e DELETE 2>/dev/null
+done
