@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+
+git add --all
+git commit -m 'git rekt'
+git push origin "$(git rev-parse --abbrev-ref HEAD):$(git rev-parse --abbrev-ref HEAD)"
