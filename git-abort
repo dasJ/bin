@@ -15,8 +15,10 @@ run() {
 
 if [ -f "${git_home}/CHERRY_PICK_HEAD" ]; then
 	run git cherry-pick --abort
-elif [ -d "${git_home}/rebase-merge" ]; then
+elif [ -d "${git_home}/rebase-merge" ] || [ -d "${git_home}/rebase-apply" ]; then
 	run git rebase --abort
+elif [ -f "${git_home}/MERGE_HEAD" ]; then
+	run git merge --abort
 else
 	echo "Nothing to abort"
 	exit 255
