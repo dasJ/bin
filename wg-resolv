@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+
+set -e
+set -u
+set -o pipefail
+
+[ -z "${WG_COLOR_MODE:-}" ] && export WG_COLOR_MODE=always
+
+while IFS= read -r line; do
+	if [[ "${line}" == *"allowed ips"* ]]; then
+		echo "${line}" | cut -d' ' -f1-4 | tr -d $'\n'
+		echo -n ' '
+
+		first=1
+		for ip in $(echo "${line}" | cut -d' ' -f5-); do
+			if [ "${first}" = 1 ]; then
+				first=0
+			else
+				echo -n ", "
+			fi
+			ip="${ip%,}"
+
+			cidr="$(echo "${ip}" | cut -d'/' -f2 | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")"
+			ip="$(echo "${ip}" | cut -d'/' -f1 | sed -r "s/\x1B\[([0-9]{1,2}(;[0-9]{1,2})?)?[mGK]//g")"
+			if [[ "${ip}" == *":"* && "${cidr}" == 128 ]] || [[ "${ip}" != *":"* && "${cidr}" == 32 ]]; then
+				set +e
+				hostsEntry="$(getent hosts "${ip}")"
+				ret="$?"
+				set -e
+				if [ "${ret}" != 0 ]; then
+					echo -n "${ip}/${cidr}"
+				else
+					echo "${hostsEntry}" | awk '{print $2}' | tr -d '\n'
+				fi
+			else
+				echo -n "${ip}/${cidr}"
+			fi
+		done
+		echo
+	else
+		echo "${line}"
+	fi
+done < <(wg "${@}")
