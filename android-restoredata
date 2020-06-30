@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/urs/bin/env bash
 
 # Restores app data dumped from /data via ADB
 

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # Wrapper around ansible-playbook that sets the terminal's title and shows notifications
 
