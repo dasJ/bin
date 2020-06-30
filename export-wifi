@@ -1,0 +1,18 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i bash -p qrencode
+# vi: ft=bash
+
+set -euo pipefail
+
+if [ "${#}" != 1 ]; then
+	echo "Usage: $0 <wifi name>"
+	echo "Possible wifi names:"
+	echo
+	while IFS= read -r file; do
+		basename -s .nmconnection "$file"
+	done <<< $(find /etc/NetworkManager/system-connections -type f -name '*.nmconnection')
+	exit 1
+fi
+
+pw="$(grep '^psk' "/etc/NetworkManager/system-connections/${1}.nmconnection" | cut -d'=' -f2-)"
+qrencode -t png -s 50 -o - "WIFI:S:${1};T:WPA2;P:${pw};;" | feh -F -
