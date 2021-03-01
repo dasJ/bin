@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+apiurl="$(git config --get gitlab.url)/api/v4"
+slug="$(git config --get gitlab.slug)"
+token="$(git config --get gitlab.token)"
+branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+
+# Urlencode a string
+urlencode() {
+	local string="${1}"
+	local strlen=${#string}
+	local encoded=""
+	local pos c o
+
+	for (( pos=0 ; pos<strlen ; pos++ )); do
+		c=${string:$pos:1}
+		case "$c" in
+			[-_.~a-zA-Z0-9])
+				o="${c}"
+				;;
+			*)
+				printf -v o '%%%02x' "'$c"
+		esac
+		encoded+="${o}"
+	done
+	echo "${encoded}"
+}
+
+# Run curl with auth
+curl() {
+	command curl -s -H "Authorization: Bearer ${token}" "${@}"
+}
+
+# Find existing MR
+mr="$(curl "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?state=opened&source_branch=$(urlencode "${branch}")&target_branch=master" | jq -r '.[].web_url')"
+if [ -n "${mr}" ]; then
+	echo "$mr"
+	exit 0
+fi
+
+# Create new MR
+title="$(git log -1 --pretty=%s)"
+if [ "${#}" -gt 0 ]; then
+	title="${*}"
+fi
+curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")" | jr -r .web_url
