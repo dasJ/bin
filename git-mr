@@ -45,4 +45,4 @@ title="$(git log -1 --pretty=%s)"
 if [ "${#}" -gt 0 ]; then
 	title="${*}"
 fi
-curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")" | jr -r .web_url
+curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")" | jq -r .web_url
