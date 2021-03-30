@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+unloadRecursive() {
+	# Unload dependants
+	deptext="$(lsmod | grep "^${1}" | awk '{print $4}' || :)"
+	IFS=, read -r -a deps <<< "${deptext}"
+	for dep in "${deps[@]}"; do
+		unloadRecursive "${dep}"
+	done
+	# Special handling for iptables garbage
+	if [ "${1}" = iptable_filter ]; then
+		iptables -F
+		iptables -X
+	fi
+	if [ "${1}" = ip6table_filter ]; then
+		ip6tables -F
+		ip6tables -X
+	fi
+	if [ "${1}" = iptable_nat ]; then
+		iptables -t nat -F
+		iptables -t nat -X
+	fi
+	if [ "${1}" = ip6table_nat ]; then
+		ip6tables -t nat -F
+		ip6tables -t nat -X
+	fi
+	if [ "${1}" = iptable_mangle ]; then
+		iptables -t mangle -F
+		iptables -t mangle -X
+	fi
+	if [ "${1}" = ip6table_mangle ]; then
+		ip6tables -t mangle -F
+		ip6tables -t mangle -X
+	fi
+
+	# Unload the module
+	rmmod "${1}" || :
+}
+
+
+for module in "${@}"; do
+	echo "Unloading ${module}"
+	unloadRecursive "${module}"
+done
