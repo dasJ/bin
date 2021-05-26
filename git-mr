@@ -33,17 +33,69 @@ curl() {
 	command curl -s -H "Authorization: Bearer ${token}" "${@}"
 }
 
+# Parse arguments
+labels=()
+title="$(git log -1 --pretty=%s)"
+body="$(git log -1 --pretty=%b)"
+needsUpdate=0
+usage() {
+	echo "Usage: git mr [-h] [-t title] [-b body] [-l label].."
+	exit "${1}"
+}
+while getopts "ht:b:l:" o; do
+	case "${o}" in
+		t)
+			title="${OPTARG}"
+			needsUpdate=1
+			;;
+		b)
+			body="${OPTARG}"
+			needsUpdate=1
+			;;
+		l)
+			labels+=("${OPTARG}")
+			needsUpdate=1
+			;;
+		h)
+			usage 0
+			;;
+		*)
+			usage 1
+			;;
+	esac
+done
+
+# Format params
+labelsParam=
+if [ "${#labels[@]}" != 0 ]; then
+	labelsParam='&labels='
+	first=1
+	for label in "${labels[@]}"; do
+		if [ "${first}" = 1 ]; then
+			first=0
+		else
+			labelsParam="${labelsParam},"
+		fi
+		labelsParam="${labelsParam}$(urlencode "${label}")"
+	done
+else
+	labelsParam=
+fi
+
 # Find existing MR
-mr="$(curl "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?state=opened&source_branch=$(urlencode "${branch}")&target_branch=master" | jq -r '.[].web_url')"
-if [ -n "${mr}" ]; then
-	echo "$mr"
+branch="feat/promtail-hostname-override" # TODO
+json="$(curl "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?state=opened&source_branch=$(urlencode "${branch}")&target_branch=master")"
+webUrl="$(jq -r '.[].web_url' <<< "${json}")"
+if [ -n "${webUrl}" ]; then
+	# Maybe update the MR
+	if [ "${needsUpdate}" = 1 ]; then
+		id="$(jq -r '.[].iid' <<< "${json}")"
+		echo "Updating !${id} "
+		curl -XPUT "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}?title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}" >/dev/null
+	fi
+	echo "$webUrl"
 	exit 0
 fi
 
 # Create new MR
-title="$(git log -1 --pretty=%s)"
-body="$(git log -1 --pretty=%b)"
-if [ "${#}" -gt 0 ]; then
-	title="${*}"
-fi
-curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")" | jq -r .web_url
+curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}" | jq -r .web_url
