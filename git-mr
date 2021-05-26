@@ -41,15 +41,19 @@ fetchUid() {
 		echo "${uidCache[\"$1\"]}"
 		return
 	fi
-	curl "${apiurl}/users/?username=$(urlencode "${1}")" | jq '.[].id'
+	uid="$(curl "${apiurl}/users/?username=$(urlencode "${1}")" | jq '.[].id')"
+	if [ -z "${uid}" ]; then
+		echo "User ${1} does not exist" >&2
+		exit 1
+	fi
+	uidCache["${1}"]="${uid}"
+	echo "${uid}"
 }
 
 # Parse arguments
 labels=()
 assignees=()
 reviewers=()
-title="$(git log -1 --pretty=%s)"
-body="$(git log -1 --pretty=%b)"
 needsUpdate=0
 usage() {
 	echo "Usage: git mr [-h] [-t title] [-b body] [-l label].. [-a assignee].. [-r reviewer].."
@@ -141,12 +145,24 @@ if [ -n "${webUrl}" ]; then
 	# Maybe update the MR
 	if [ "${needsUpdate}" = 1 ]; then
 		id="$(jq -r '.[].iid' <<< "${json}")"
-		echo "Updating !${id} "
-		curl -XPUT "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}?title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}" >/dev/null
+		echo "Updating !${id}" >&2
+		if [ -n "${title:-}" ]; then
+			titleParam="&title=$(urlencode "${title}")"
+		else
+			titleParam=
+		fi
+		if [ -n "${body:-}" ]; then
+			bodyParam="&title=$(urlencode "${body}")"
+		else
+			bodyParam=
+		fi
+		echo curl -XPUT "$(sed 's/&/?/' <<< "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}${titleParam}${bodyParam}${labelsParam}${assigneesParam}${reviewersParam}")" >/dev/null
 	fi
 	echo "$webUrl"
 	exit 0
 fi
 
 # Create new MR
+[ -z "${title:-}" ] && title="$(git log -1 --pretty=%s)"
+[ -z "${body:-}" ] && body="$(git log -1 --pretty=%b)"
 curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}" | jq -r .web_url
