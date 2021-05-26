@@ -6,6 +6,7 @@ apiurl="$(git config --get gitlab.url)/api/v4"
 slug="$(git config --get gitlab.slug)"
 token="$(git config --get gitlab.token)"
 branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
+declare -A uidCache
 
 # Urlencode a string
 urlencode() {
@@ -33,16 +34,28 @@ curl() {
 	command curl -s -H "Authorization: Bearer ${token}" "${@}"
 }
 
+# Fetch the UID of a user by name
+fetchUid() {
+	# Fetch from the cache if cached
+	if [[ -v uidCache["$1"] ]]; then
+		echo "${uidCache[\"$1\"]}"
+		return
+	fi
+	curl "${apiurl}/users/?username=$(urlencode "${1}")" | jq '.[].id'
+}
+
 # Parse arguments
 labels=()
+assignees=()
+reviewers=()
 title="$(git log -1 --pretty=%s)"
 body="$(git log -1 --pretty=%b)"
 needsUpdate=0
 usage() {
-	echo "Usage: git mr [-h] [-t title] [-b body] [-l label].."
+	echo "Usage: git mr [-h] [-t title] [-b body] [-l label].. [-a assignee].. [-r reviewer].."
 	exit "${1}"
 }
-while getopts "ht:b:l:" o; do
+while getopts "ht:b:l:a:r:" o; do
 	case "${o}" in
 		t)
 			title="${OPTARG}"
@@ -56,6 +69,14 @@ while getopts "ht:b:l:" o; do
 			labels+=("${OPTARG}")
 			needsUpdate=1
 			;;
+		a)
+			assignees+=("${OPTARG}")
+			needsUpdate=1
+			;;
+		r)
+			reviewers+=("${OPTARG}")
+			needsUpdate=1
+			;;
 		h)
 			usage 0
 			;;
@@ -66,7 +87,6 @@ while getopts "ht:b:l:" o; do
 done
 
 # Format params
-labelsParam=
 if [ "${#labels[@]}" != 0 ]; then
 	labelsParam='&labels='
 	first=1
@@ -81,9 +101,40 @@ if [ "${#labels[@]}" != 0 ]; then
 else
 	labelsParam=
 fi
+if [ "${#assignees[@]}" != 0 ]; then
+	assigneesParam='&assignee_ids='
+	first=1
+	for username in "${assignees[@]}"; do
+		if [ "${first}" = 1 ]; then
+			first=0
+		else
+			assigneesParam="${assigneesParam},"
+		fi
+		uid="$(fetchUid "${username}")"
+		assigneesParam="${assigneesParam}${uid}"
+	done
+	
+else
+	assigneesParam=
+fi
+if [ "${#reviewers[@]}" != 0 ]; then
+	reviewersParam='&reviewer_ids='
+	first=1
+	for username in "${reviewers[@]}"; do
+		if [ "${first}" = 1 ]; then
+			first=0
+		else
+			reviewersParam="${reviewersParam},"
+		fi
+		uid="$(fetchUid "${username}")"
+		reviewersParam="${reviewersParam}${uid}"
+	done
+	
+else
+	reviewersParam=
+fi
 
 # Find existing MR
-branch="feat/promtail-hostname-override" # TODO
 json="$(curl "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?state=opened&source_branch=$(urlencode "${branch}")&target_branch=master")"
 webUrl="$(jq -r '.[].web_url' <<< "${json}")"
 if [ -n "${webUrl}" ]; then
@@ -91,11 +142,11 @@ if [ -n "${webUrl}" ]; then
 	if [ "${needsUpdate}" = 1 ]; then
 		id="$(jq -r '.[].iid' <<< "${json}")"
 		echo "Updating !${id} "
-		curl -XPUT "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}?title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}" >/dev/null
+		curl -XPUT "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}?title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}" >/dev/null
 	fi
 	echo "$webUrl"
 	exit 0
 fi
 
 # Create new MR
-curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}" | jq -r .web_url
+curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}" | jq -r .web_url
