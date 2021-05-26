@@ -50,6 +50,61 @@ fetchUid() {
 	echo "${uid}"
 }
 
+# Show details if desired
+paddedTitle() {
+	tput bold
+	printf %-13s "${1}: "
+	tput sgr0
+}
+conditionalShow() {
+	[ "${show}" != 1 ] && return
+	json="${1}"
+	{
+		paddedTitle ID
+		wip="$(jq '.[].work_in_progress' <<< "${json}")"
+		if [ "${wip}" = true ]; then
+			wip=" $(tput setaf 3)(WIP)$(tput sgr0)"
+		else
+			wip=
+		fi
+		echo "!$(jq '.[].iid' <<< "${json}")${wip} - $(jq -r '.[].web_url' <<< "${json}")"
+	}
+	{
+		paddedTitle Branch
+		jq -r '.[].source_branch' <<< "${json}"
+	}
+	{
+		paddedTitle Automerge
+		automerge="$(jq '.[].merge_when_pipeline_succeeds' <<< "${json}")"
+		if [ "${automerge}" = true ]; then
+			echo "$(tput setaf 2)yes$(tput sgr0)"
+		else
+			echo "$(tput setaf 1)no$(tput sgr0)"
+		fi
+	}
+	{
+		paddedTitle "Last update"
+		jq -r '.[].updated_at' <<< "${json}"
+	}
+	{
+		paddedTitle "Assignees"
+		jq -r '[.[].assignees | .[] | .username] | join(", ")' <<< "${json}"
+	}
+	{
+		paddedTitle "Reviewers"
+		jq -r '[.[].reviewers | .[] | .username] | join(", ")' <<< "${json}"
+	}
+	{
+		paddedTitle Title
+		jq -r '.[].title' <<< "${json}"
+	}
+	{
+		paddedTitle Description
+		echo
+		jq -r '.[].description' <<< "${json}"
+	}
+}
+
 # Parse arguments
 labels=()
 assignees=()
@@ -57,11 +112,12 @@ reviewers=()
 ready=0
 draft=0
 needsUpdate=0
+show=0
 usage() {
-	echo "Usage: git mr [-h] [-d/-R] [-t title] [-b body] [-l label].. [-a assignee].. [-r reviewer].."
+	echo "Usage: git mr [-h] [-d/-R] [-s] [-t title] [-b body] [-l label].. [-a assignee].. [-r reviewer].."
 	exit "${1}"
 }
-while getopts "hdRt:b:l:a:r:" o; do
+while getopts "hdRst:b:l:a:r:" o; do
 	case "${o}" in
 		t)
 			title="${OPTARG}"
@@ -90,6 +146,9 @@ while getopts "hdRt:b:l:a:r:" o; do
 		R)
 			ready=1
 			needsUpdate=1
+			;;
+		s)
+			show=1
 			;;
 		h)
 			usage 0
@@ -184,6 +243,7 @@ if [ -n "${webUrl}" ]; then
 		curl -XPUT "$(sed 's/&/?/' <<< "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}${titleParam}${bodyParam}${labelsParam}${assigneesParam}${reviewersParam}")" >/dev/null
 	fi
 	echo "$webUrl"
+	conditionalShow "$(curl "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?state=opened&source_branch=$(urlencode "${branch}")&target_branch=master")"
 	exit 0
 fi
 
@@ -193,4 +253,6 @@ fi
 if [ "${draft}" = 1 ]; then
 	title="Draft: ${title}"
 fi
-curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}" | jq -r .web_url
+json="$(curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}")"
+jq -r '.[].web_url' <<< "${json}"
+conditionalShow "$(jq -r '.[].iid' <<< "${json}")" "${json}"
