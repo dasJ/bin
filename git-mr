@@ -54,12 +54,14 @@ fetchUid() {
 labels=()
 assignees=()
 reviewers=()
+ready=0
+draft=0
 needsUpdate=0
 usage() {
-	echo "Usage: git mr [-h] [-t title] [-b body] [-l label].. [-a assignee].. [-r reviewer].."
+	echo "Usage: git mr [-h] [-d/-R] [-t title] [-b body] [-l label].. [-a assignee].. [-r reviewer].."
 	exit "${1}"
 }
-while getopts "ht:b:l:a:r:" o; do
+while getopts "hdRt:b:l:a:r:" o; do
 	case "${o}" in
 		t)
 			title="${OPTARG}"
@@ -81,6 +83,14 @@ while getopts "ht:b:l:a:r:" o; do
 			reviewers+=("${OPTARG}")
 			needsUpdate=1
 			;;
+		d)
+			draft=1
+			needsUpdate=1
+			;;
+		R)
+			ready=1
+			needsUpdate=1
+			;;
 		h)
 			usage 0
 			;;
@@ -89,6 +99,11 @@ while getopts "ht:b:l:a:r:" o; do
 			;;
 	esac
 done
+
+if [ "${draft}" = 1 ] && [ "${ready}" = 1 ]; then
+	echo "A MR cannot be both a draft and ready" >&2
+	exit 1
+fi
 
 # Format params
 if [ "${#labels[@]}" != 0 ]; then
@@ -145,18 +160,28 @@ if [ -n "${webUrl}" ]; then
 	# Maybe update the MR
 	if [ "${needsUpdate}" = 1 ]; then
 		id="$(jq -r '.[].iid' <<< "${json}")"
+		oldTitle="$(jq -r '.[].title' <<< "${json}")"
 		echo "Updating !${id}" >&2
 		if [ -n "${title:-}" ]; then
+			if [ "${draft}" = 1 ]; then
+				title="Draft: ${title}"
+			fi
 			titleParam="&title=$(urlencode "${title}")"
 		else
-			titleParam=
+			if [ "${draft}" = 1 ]; then
+				titleParam="&title=$(urlencode "Draft: ${oldTitle}")"
+			elif [ "${ready}" = 1 ]; then
+				titleParam="&title=$(urlencode "${oldTitle#"Draft: "}")"
+			else
+				titleParam=
+			fi
 		fi
 		if [ -n "${body:-}" ]; then
 			bodyParam="&title=$(urlencode "${body}")"
 		else
 			bodyParam=
 		fi
-		echo curl -XPUT "$(sed 's/&/?/' <<< "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}${titleParam}${bodyParam}${labelsParam}${assigneesParam}${reviewersParam}")" >/dev/null
+		curl -XPUT "$(sed 's/&/?/' <<< "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}${titleParam}${bodyParam}${labelsParam}${assigneesParam}${reviewersParam}")" >/dev/null
 	fi
 	echo "$webUrl"
 	exit 0
@@ -165,4 +190,7 @@ fi
 # Create new MR
 [ -z "${title:-}" ] && title="$(git log -1 --pretty=%s)"
 [ -z "${body:-}" ] && body="$(git log -1 --pretty=%b)"
+if [ "${draft}" = 1 ]; then
+	title="Draft: ${title}"
+fi
 curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}" | jq -r .web_url
