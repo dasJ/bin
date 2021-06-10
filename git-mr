@@ -236,7 +236,7 @@ if [ -n "${webUrl}" ]; then
 			fi
 		fi
 		if [ -n "${body:-}" ]; then
-			bodyParam="&title=$(urlencode "${body}")"
+			bodyParam="&description=$(urlencode "${body}")"
 		else
 			bodyParam=
 		fi
@@ -254,5 +254,5 @@ if [ "${draft}" = 1 ]; then
 	title="Draft: ${title}"
 fi
 json="$(curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}")"
-jq -r '.[].web_url' <<< "${json}"
-conditionalShow "$(jq -r '.[].iid' <<< "${json}")" "${json}"
+jq -r '.web_url' <<< "${json}"
+conditionalShow "$(jq -r '.iid' <<< "${json}")" "${json}"
