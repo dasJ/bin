@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# shellcheck source=/home/janne/.config/kimai
+. ~/.config/kimai
+# kimaiURL=
+# user=
+# token=
+# projectID=
+# activityID=
+
+# Run an authenticated curl
+_curl() {
+	curl -sfH 'Content-Type: application/json' -H "X-AUTH-USER: ${user}" -H "X-AUTH-TOKEN: ${token}" "${@}"
+}
+
+# Return the ID of the currently active timesheet or "" if
+# there is none
+getActiveID() {
+	local json
+	json="$(_curl -X GET "${kimaiURL}/api/timesheets/active")"
+	[ "$(jq length <<< "${json}")" = 0 ] && return # No active timesheet
+	jq '.[].id' <<< "${json}"
+}
+
+# Return the edit URL of a timesheet by ID
+editURL() {
+	local id="${1}"
+	echo "${kimaiURL}/en/timesheet/${id}/edit"
+}
+
+# Start a new timesheet and return its ID
+newTimesheet() {
+	local json
+	json="$(cat <<-EOF
+		{
+			"begin": "$(date +%Y-%m-%dT%H:%M:%S)",
+			"project": ${projectID},
+			"activity": ${activityID},
+			"description": "",
+			"fixedRate": 0,
+			"hourlyRate": 0,
+			"exported": false,
+			"billable": false,
+			"tags": ""
+		}
+	EOF
+	)"
+	_curl -X POST -d "${json}" "${kimaiURL}/api/timesheets" | jq .id
+}
+
+# Stop the timesheet given by ID
+stopTimesheet() {
+	local id="${1}"
+	local json description newDescription newJSON
+	json="$(_curl -X GET "${kimaiURL}/api/timesheets/${id}")"
+
+	# Ensure a description
+	description="$(jq -r .description <<< "${json}")"
+	if [ "${description}" = null ]; then
+		echo "Please add a description for the timesheet you did."
+		echo "It started at $(jq -r .begin <<< "${json}")"
+		newDescription=
+		while [ -z "${newDescription:-}" ]; do
+			read -r -p "Description: " newDescription
+		done
+		newJSON="{ \"description\": \"${newDescription//\"/\\\"}\" }"
+		_curl -X PATCH -d "${newJSON}" "${kimaiURL}/api/timesheets/${id}" >/dev/null
+	fi
+
+	# Stop the timesheet
+	_curl -X PATCH "${kimaiURL}/api/timesheets/${id}/stop" >/dev/null
+	echo "Stopped $(editURL "${id}")"
+}
+
+action="${1:-}"
+currentID="$(getActiveID)"
+case "${action}" in
+	start)
+		if [ -n "${currentID}" ]; then
+			echo "You are already doing something: $(editURL "${currentID}")"
+			exit 1
+		fi
+		editURL "$(newTimesheet)"
+		;;
+	stop)
+		if [ -z "${currentID}" ]; then
+			echo "You are not doing anything"
+			exit 1
+		fi
+		stopTimesheet "${currentID}"
+		;;
+	switch)
+		if [ -z "${currentID}" ]; then
+			echo "You are not doing anything"
+			exit 1
+		fi
+		stopTimesheet "${currentID}"
+		editURL "$(newTimesheet)"
+		;;
+	*)
+		echo "Usage: ${0} [start|stop|switch]" >&2
+		exit 1
+esac
