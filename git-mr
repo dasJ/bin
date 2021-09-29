@@ -2,9 +2,19 @@
 
 set -euo pipefail
 
-apiurl="$(git config --get gitlab.url)/api/v4"
-slug="$(git config --get gitlab.slug)"
-token="$(git config --get gitlab.token)"
+if ! apiurl="$(git config --get gitlab.url)/api/v4"; then
+	echo "You forgot to set gitlab.url" >&2
+	exit 1
+fi
+if ! slug="$(git config --get gitlab.slug)"; then
+	echo "You forgot to set gitlab.slug" >&2
+	exit 1
+fi
+if ! token="$(git config --get gitlab.token)"; then
+	echo "You forgot to set gitlab.token" >&2
+	exit 1
+fi
+
 branch="$(git rev-parse --abbrev-ref HEAD 2>/dev/null)"
 declare -A uidCache
 
