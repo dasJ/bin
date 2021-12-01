@@ -1,0 +1,81 @@
+#!/usr/bin/env nix-shell
+#!nix-shell -i python3 -p python3.pkgs.ptable
+# vi: ft=python:
+
+import copy
+import re
+import sys
+from prettytable import PrettyTable
+
+state_table_header_regex = re.compile('^\\[ *pid')
+state_table_regex = re.compile('^\\[ *')
+PAGE_SIZE = 4096
+MIB_FACTOR = 1048576
+
+
+def print_taskstates(title, values):
+    table = PrettyTable()
+    table.title = title + (' [MiB]')
+    table.field_names = ['PID', 'UID', 'TGID', 'TOTAL_VM', 'RSS', 'PGTABLES',
+                         'SWAPENTS', 'OOM_SCORE_ADJ', 'NAME']
+    table.align = 'l'
+
+    for line in values:
+        toAdd = copy.copy(line)
+        for i in [3, 4, 5]:
+            toAdd[i] = '{:.2f}'.format(toAdd[i])
+        table.add_row(toAdd)
+    print(table)
+
+
+lines = []
+in_table = False
+for _line in sys.stdin:
+    line = _line.strip()
+
+    if state_table_header_regex.match(line):
+        in_table = True
+        continue
+
+    if in_table and not state_table_regex.match(line):
+        break
+
+    if in_table:
+        split = re.split(' +', line)
+        # Clean up first column
+        del split[0]
+        split[0] = split[0].rstrip(']')
+        # nPages -> MB
+        for i in [3, 4]:
+            nPages = split[i]
+            nBytes = int(nPages) * PAGE_SIZE
+            nMib = nBytes / MIB_FACTOR
+            split[i] = nMib
+        # str -> int
+        for i in [0, 1, 2, 5, 6, 7]:
+            split[i] = int(split[i])
+        # Bytes -> MB
+        split[5] = split[5] / MIB_FACTOR
+        lines.append(split)
+
+# Worst offenders by RSS
+by_rss = sorted(lines, key=lambda i: -i[4])
+print_taskstates('Worst offenders by RSS', by_rss[:5])
+print()
+
+# Group offenders by name
+# name = [ total_vm, rss, pgtables_bytes, swapents ]
+by_name = {}
+for entry in lines:
+    old = by_name[entry[8]] if entry[8] in by_name else [0, 0, 0, 0]
+    by_name[entry[8]] = [
+        old[0] + entry[3],
+        old[1] + entry[4],
+        old[2] + entry[5],
+        old[3] + entry[6]
+    ]
+
+by_name_list = [['-', '-', '-', v[0], v[1], v[2], v[3], '-', k] for k, v in by_name.items()]
+
+by_rss = sorted(by_name_list, key=lambda i: -i[4])
+print_taskstates('Worst offenders by RSS (grouped by name)', by_rss[:5])
