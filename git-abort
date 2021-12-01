@@ -5,7 +5,7 @@
 git_home="$(git rev-parse --show-toplevel)/.git"
 if [ -f "${git_home}" ]; then
 	# We are in a submodule
-	git_home="$(cat "${git_home}" | cut -d' ' -f2)"
+	git_home="$(cut -d' ' -f2 < "${git_home}")"
 fi
 
 run() {
@@ -19,6 +19,8 @@ elif [ -d "${git_home}/rebase-merge" ] || [ -d "${git_home}/rebase-apply" ]; the
 	run git rebase --abort
 elif [ -f "${git_home}/MERGE_HEAD" ]; then
 	run git merge --abort
+elif [ -f "${git_home}/REVERT_HEAD" ]; then
+	run git revert --abort
 else
 	echo "Nothing to abort"
 	exit 255
