@@ -11,35 +11,36 @@ unloadRecursive() {
 	done
 	# Special handling for iptables garbage
 	if [ "${1}" = iptable_filter ]; then
-		iptables -F
-		iptables -X
+		"${ipt}" -F
+		"${ipt}" -X
 	fi
 	if [ "${1}" = ip6table_filter ]; then
-		ip6tables -F
-		ip6tables -X
+		"${ip6t}" -F
+		"${ip6t}" -X
 	fi
 	if [ "${1}" = iptable_nat ]; then
-		iptables -t nat -F
-		iptables -t nat -X
+		"${ipt}" -t nat -F
+		"${ipt}" -t nat -X
 	fi
 	if [ "${1}" = ip6table_nat ]; then
-		ip6tables -t nat -F
-		ip6tables -t nat -X
+		"${ip6t}" -t nat -F
+		"${ip6t}" -t nat -X
 	fi
 	if [ "${1}" = iptable_mangle ]; then
-		iptables -t mangle -F
-		iptables -t mangle -X
+		"${ipt}" -t mangle -F
+		"${ipt}" -t mangle -X
 	fi
 	if [ "${1}" = ip6table_mangle ]; then
-		ip6tables -t mangle -F
-		ip6tables -t mangle -X
+		"${ip6t}" -t mangle -F
+		"${ip6t}" -t mangle -X
 	fi
 
 	# Unload the module
 	rmmod "${1}" || :
 }
 
-
+ipt="${IPTABLES:-iptables-legacy}"
+ip6t="${IP6TABLES:-ip6tables-legacy}"
 for module in "${@}"; do
 	echo "Unloading ${module}"
 	unloadRecursive "${module}"
