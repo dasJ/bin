@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+
+# Pin the wacom tablet to the current screen
+
+set -euo pipefail
+
+devices="$(xsetwacom list devices | grep -Po '(?<=id: )\d*')"
+rect="$(i3-msg -t get_workspaces | jq -r '.[] | select(.focused==true).rect | "\(.width)x\(.height)+\(.x)+\(.y)"')"
+for dev in ${devices}; do
+	xsetwacom set "${dev}" MapToOutput "${rect}"
+done
