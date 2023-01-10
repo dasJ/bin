@@ -51,8 +51,7 @@ paddedTitle() {
 	printf %-13s "${1}: "
 	tput sgr0
 }
-conditionalShow() {
-	[ "${show}" != 1 ] && return
+show() {
 	json="${1}"
 	{
 		paddedTitle ID
@@ -237,8 +236,7 @@ if [ -n "${webUrl}" ]; then
 		fi
 		curl -XPUT "$(sed 's/&/?/' <<< "${apiurl}/projects/$(urlencode "${slug}")/merge_requests/${id}${titleParam}${bodyParam}${labelsParam}${assigneesParam}${reviewersParam}")" >/dev/null
 	fi
-	echo "$webUrl"
-	conditionalShow "$(curl "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?state=opened&source_branch=$(urlencode "${branch}")&target_branch=master")"
+	show "$(curl "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?state=opened&source_branch=$(urlencode "${branch}")&target_branch=master")"
 	exit 0
 fi
 
@@ -249,5 +247,4 @@ if [ "${draft}" = 1 ]; then
 	title="Draft: ${title}"
 fi
 json="$(curl -XPOST "${apiurl}/projects/$(urlencode "${slug}")/merge_requests?source_branch=$(urlencode "${branch}")&target_branch=master&remove_source_branch=true&title=$(urlencode "${title}")&description=$(urlencode "${body}")${labelsParam}${assigneesParam}${reviewersParam}")"
-jq -r '.web_url' <<< "${json}"
-conditionalShow "$(jq -r '.iid' <<< "${json}")" "${json}"
+show "[${json}]"
