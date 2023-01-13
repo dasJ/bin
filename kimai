@@ -30,6 +30,27 @@ editURL() {
 	echo "${kimaiURL}/en/timesheet/${id}/edit"
 }
 
+# Opens $EDITOR with the current description
+editDescription() {
+	local id="${1}"
+	local desc newJSON
+	tmpfile="$(mktemp)"
+	trap 'rm "${tmpfile}"' INT TERM EXIT
+
+	# Get the current description
+	desc="$(_curl -X GET "${kimaiURL}/api/timesheets/${id}" | jq -r .description)"
+	if [[ "${desc}" == null ]]; then
+		desc=
+	fi
+	# Edit the description
+	echo "${desc}" > "${tmpfile}"
+	"${EDITOR:-vim}" "${tmpfile}"
+	# Write it back to Kimai
+	desc="$(< "${tmpfile}")"
+	newJSON="{ \"description\": \"${desc//\"/\\\"}\" }"
+	_curl -X PATCH -d "${newJSON}" "${kimaiURL}/api/timesheets/${id}" >/dev/null
+}
+
 # Start a new timesheet and return its ID
 newTimesheet() {
 	local json
@@ -99,7 +120,14 @@ case "${action}" in
 		stopTimesheet "${currentID}"
 		editURL "$(newTimesheet)"
 		;;
+	desc)
+		if [ -z "${currentID}" ]; then
+			echo "You are not doing anything"
+			exit 1
+		fi
+		editDescription "${currentID}"
+		;;
 	*)
-		echo "Usage: ${0} [start|stop|switch]" >&2
+		echo "Usage: ${0} [start|stop|switch|desc]" >&2
 		exit 1
 esac
