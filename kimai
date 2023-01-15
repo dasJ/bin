@@ -61,10 +61,8 @@ newTimesheet() {
 			"project": ${projectID},
 			"activity": ${activityID},
 			"description": "",
-			"fixedRate": 0,
-			"hourlyRate": 0,
 			"exported": false,
-			"billable": false,
+			"billable": true,
 			"tags": ""
 		}
 	EOF
