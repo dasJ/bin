@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -euo pipefail
+shopt -s inherit_errexit
 
 # shellcheck source=/home/janne/.config/kimai
 . ~/.config/kimai
@@ -20,7 +21,7 @@ _curl() {
 getActiveID() {
 	local json
 	json="$(_curl -X GET "${kimaiURL}/api/timesheets/active")"
-	[ "$(jq length <<< "${json}")" = 0 ] && return # No active timesheet
+	[[ "$(jq length <<< "${json}")" = 0 ]] && return # No active timesheet
 	jq '.[].id' <<< "${json}"
 }
 
@@ -79,11 +80,11 @@ stopTimesheet() {
 
 	# Ensure a description
 	description="$(jq -r .description <<< "${json}")"
-	if [ "${description}" = null ]; then
+	if [[ "${description}" = null ]]; then
 		echo "Please add a description for the timesheet you did."
 		echo "It started at $(jq -r .begin <<< "${json}")"
 		newDescription=
-		while [ -z "${newDescription:-}" ]; do
+		while [[ -z "${newDescription:-}" ]]; do
 			read -r -p "Description: " newDescription
 		done
 		newJSON="{ \"description\": \"${newDescription//\"/\\\"}\" }"
@@ -99,21 +100,21 @@ action="${1:-}"
 currentID="$(getActiveID)"
 case "${action}" in
 	start)
-		if [ -n "${currentID}" ]; then
+		if [[ -n "${currentID}" ]]; then
 			echo "You are already doing something: $(editURL "${currentID}")"
 			exit 1
 		fi
 		editURL "$(newTimesheet)"
 		;;
 	stop)
-		if [ -z "${currentID}" ]; then
+		if [[ -z "${currentID}" ]]; then
 			echo "You are not doing anything"
 			exit 1
 		fi
 		stopTimesheet "${currentID}"
 		;;
 	switch)
-		if [ -z "${currentID}" ]; then
+		if [[ -z "${currentID}" ]]; then
 			echo "You are not doing anything"
 			exit 1
 		fi
