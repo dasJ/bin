@@ -210,6 +210,6 @@ case "${action}" in
 		renderYearly
 		;;
 	*)
-		echo "Usage: ${0} [start|stop|switch|desc]" >&2
+		echo "Usage: ${0} [start|stop|switch|desc|yearly]" >&2
 		exit 1
 esac
