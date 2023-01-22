@@ -164,12 +164,14 @@ renderYearly() {
 	if [[ "${minutes}" -lt 0 ]]; then
 		minutes="$((minutes * -1))"
 	fi
-	plus=+
 	if [[ "${hours}" -lt 0 ]]; then
-		plus=
+		hours="$((hours * -1))"
+		sign=-
+	else
+		sign=+
 	fi
 
-	printf "Diff in worktime right now: %s%02d:%02d:%02d\n" "${plus}" "${hours}" "${minutes}" "${seconds}"
+	printf "Diff in worktime right now: %s%02d:%02d:%02d\n" "${sign}" "${hours}" "${minutes}" "${seconds}"
 }
 
 action="${1:-}"
