@@ -61,7 +61,6 @@ newTimesheet() {
 	local json
 	json="$(cat <<-EOF
 		{
-			"begin": "$(date +%Y-%m-%dT%H:%M:%S)",
 			"project": ${projectID},
 			"activity": ${activityID},
 			"description": "",
