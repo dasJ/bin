@@ -11,6 +11,10 @@ shopt -s inherit_errexit
 # projectID=
 # activityID=
 
+# sickDays=
+# hoursPerDay=
+# holidayActivity=
+
 # Run an authenticated curl
 _curl() {
 	curl -sfH 'Content-Type: application/json' -H "X-AUTH-USER: ${user}" -H "X-AUTH-TOKEN: ${token}" "${@}"
@@ -94,6 +98,80 @@ stopTimesheet() {
 	echo "Stopped $(editURL "${id}")"
 }
 
+renderYearly() {
+	# Sum up duration
+	begin="$(date +%y)-01-01T00:00:00"
+	end="$(date +%Y-%m-%dT%H:%M:%S)"
+	pagesize=100
+	i=1
+	sum=0
+	holidaySum=0
+	while :; do
+		out="$(_curl --no-fail -i "${kimaiURL}/api/timesheets?begin=${begin}&end=${end}&size=${pagesize}&page=${i}")"
+		code="$(grep ^HTTP/ <<< "${out}" | cut -d' ' -f2)"
+		if [[ "${code}" == 404 ]]; then
+			break
+		fi
+		if [[ "${code}" != 200 ]]; then
+			echo "Unexpected HTTP response: ${code}"
+			echo "${out}"
+		fi
+
+		durationSum="$(grep '^\[' <<< "${out}" | jq "[.[] | select(.activity != ${holidayActivity}) | .duration] | add")"
+		((sum += durationSum))
+		# Count holiday days
+		out="$(_curl --no-fail -i "${kimaiURL}/api/timesheets?begin=${begin}&end=${end}&size=${pagesize}&page=${i}")"
+		code="$(grep ^HTTP/ <<< "${out}" | cut -d' ' -f2)"
+		if [[ "${code}" != 200 ]]; then
+			echo "Unexpected HTTP response: ${code}"
+			echo "${out}"
+			exit 1
+		fi
+
+		holidays="$(grep '^\[' <<< "${out}" | jq "[.[] | select(.activity == ${holidayActivity})] | length")"
+		holidaySum="$((holidaySum + holidays))"
+
+		i="$((i + 1))"
+	done
+	# Calculate seconds we should have spent working
+	daysSoFar=0
+	d="$(date +%Y)-01-01"
+	tomorrow="$(date -d 'today + 1 day' +%Y-%m-%d)"
+	while :; do
+		weekday="$(date -d "${d}" +%w)"
+		if [[ "${weekday}" != 0 && "${weekday}" != 6 ]]; then
+			daysSoFar="$((daysSoFar + 1))"
+		fi
+		d="$(date -d "${d} + 1 day" +%Y-%m-%d)"
+		if [[ "${d}" == "${tomorrow}" ]]; then
+			break
+		fi
+	done
+	daysSoFar="$((daysSoFar - sickDays - holidaySum))"
+	hoursSoFar="$((daysSoFar * hoursPerDay))"
+	secondsSoFar="$((hoursSoFar * 60 * 60))"
+	echo "Only stopped timesheets are counted!"
+	echo "You should have worked ${daysSoFar}d by the end of this day, this is ${hoursSoFar}h"
+	echo "You have actually (roughly) worked $((sum / 60 / 60))h"
+	# Calculate and render diff
+	rawDiff="$((sum - secondsSoFar))"
+	seconds="$((rawDiff % 60))"
+	minutes="$((rawDiff / 60 % 60))"
+	hours="$((rawDiff / 60 / 60 % 60))"
+	if [[ "${seconds}" -lt 0 ]]; then
+		seconds="$((seconds * -1))"
+	fi
+	if [[ "${minutes}" -lt 0 ]]; then
+		minutes="$((minutes * -1))"
+	fi
+	plus=+
+	if [[ "${hours}" -lt 0 ]]; then
+		plus=
+	fi
+
+	printf "Diff in worktime right now: %s%02d:%02d:%02d\n" "${plus}" "${hours}" "${minutes}" "${seconds}"
+}
+
 action="${1:-}"
 currentID="$(getActiveID)"
 case "${action}" in
@@ -120,11 +198,14 @@ case "${action}" in
 		editURL "$(newTimesheet)"
 		;;
 	desc)
-		if [ -z "${currentID}" ]; then
+		if [[ -z "${currentID}" ]]; then
 			echo "You are not doing anything"
 			exit 1
 		fi
 		editDescription "${currentID}"
+		;;
+	yearly)
+		renderYearly
 		;;
 	*)
 		echo "Usage: ${0} [start|stop|switch|desc]" >&2
