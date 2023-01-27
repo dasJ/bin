@@ -206,27 +206,9 @@ renderYearly() {
 	hoursSoFar="$((daysSoFar * hoursPerDay))"
 	secondsSoFar="$((hoursSoFar * 60 * 60))"
 	echo "Only stopped timesheets are counted!"
-	echo "You should have worked ${daysSoFar}d by the end of this day, this is ${hoursSoFar}h"
-	echo "You have actually (roughly) worked $((sum / 60 / 60))h"
-	# Calculate and render diff
-	rawDiff="$((sum - secondsSoFar))"
-	seconds="$((rawDiff % 60))"
-	minutes="$((rawDiff / 60 % 60))"
-	hours="$((rawDiff / 60 / 60 % 60))"
-	if [[ "${seconds}" -lt 0 ]]; then
-		seconds="$((seconds * -1))"
-	fi
-	if [[ "${minutes}" -lt 0 ]]; then
-		minutes="$((minutes * -1))"
-	fi
-	if [[ "${hours}" -lt 0 ]]; then
-		hours="$((hours * -1))"
-		sign=-
-	else
-		sign=+
-	fi
-
-	printf "Diff in worktime right now: %s%02d:%02d:%02d\n" "${sign}" "${hours}" "${minutes}" "${seconds}"
+	echo "You should have worked ${daysSoFar}d by the end of this day, this is $(secondsToHuman "${secondsSoFar}")"
+	echo "You have actually worked $(secondsToHuman "${sum}")"
+	echo "Diff in worktime right now: $(secondsToHuman "$((sum - secondsSoFar))")"
 }
 
 action="${1:-}"
