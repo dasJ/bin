@@ -98,6 +98,59 @@ stopTimesheet() {
 	echo "Stopped $(editURL "${id}")"
 }
 
+secondsToHuman() {
+	raw="${1}"
+
+	seconds="$(bc <<< "${raw} % 60")"
+	minutes="$(bc <<< "${raw} / 60 % 60")"
+	hours="$(bc <<< "${raw} / 60 / 60")"
+	if [[ "${seconds}" -lt 0 ]]; then
+		seconds="$((seconds * -1))"
+	fi
+	if [[ "${minutes}" -lt 0 ]]; then
+		minutes="$((minutes * -1))"
+	fi
+	if [[ "${hours}" -lt 0 ]]; then
+		hours="$((hours * -1))"
+		sign=-
+	else
+		sign=+
+	fi
+
+	printf "%s%02d:%02d:%02d\n" "${sign}" "${hours}" "${minutes}" "${seconds}"
+}
+
+renderDaily() {
+	hoursPerDay="${hoursPerDay:-8}"
+	pagesize=100
+	start="$(date +%Y-%m-%dT00:00:00)"
+	end="$(date +%Y-%m-%dT%H:%M:%S)"
+	i=1
+	sum=0
+	while :; do
+		out="$(_curl --no-fail -i "${kimaiURL}/api/timesheets?begin=${start}&end=${end}&size=${pagesize}&page=${i}")"
+		code="$(grep ^HTTP/ <<< "${out}" | cut -d' ' -f2)"
+		if [[ "${code}" == 404 ]]; then
+			break
+		fi
+		if [[ "${code}" != 200 ]]; then
+			echo "Unexpected HTTP response: ${code}"
+			echo "${out}"
+		fi
+
+		durationSum="$(grep '^\[' <<< "${out}" | jq "[.[] | .duration] | add")"
+		((sum += durationSum))
+		i="$((i + 1))"
+	done
+
+	daySeconds="$((hoursPerDay * 60 * 60))"
+
+	echo "Only stopped timesheets are counted!"
+	echo "You should have worked $(secondsToHuman "${daySeconds}") by the end of this day"
+	echo "You have actually worked $(secondsToHuman "${sum}")"
+	echo "Diff in worktime right now: $(secondsToHuman "$((sum - daySeconds))")"
+}
+
 renderYearly() {
 	# Sum up duration
 	begin="$(date +%y)-01-01T00:00:00"
@@ -211,7 +264,10 @@ case "${action}" in
 	yearly)
 		renderYearly
 		;;
+	daily)
+		renderDaily
+		;;
 	*)
-		echo "Usage: ${0} [start|stop|switch|desc|yearly]" >&2
+		echo "Usage: ${0} [start|stop|switch|desc|yearly|daily]" >&2
 		exit 1
 esac
