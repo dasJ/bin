@@ -147,6 +147,8 @@ renderYearly() {
 			break
 		fi
 	done
+	sickDays="${sickDays:-0}"
+	hoursPerDay="${hoursPerDay:-8}"
 	daysSoFar="$((daysSoFar - sickDays - holidaySum))"
 	hoursSoFar="$((daysSoFar * hoursPerDay))"
 	secondsSoFar="$((hoursSoFar * 60 * 60))"
