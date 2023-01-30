@@ -99,21 +99,22 @@ stopTimesheet() {
 
 secondsToHuman() {
 	raw="${1}"
+	sign=+
 
 	seconds="$(bc <<< "${raw} % 60")"
 	minutes="$(bc <<< "${raw} / 60 % 60")"
 	hours="$(bc <<< "${raw} / 60 / 60")"
 	if [[ "${seconds}" -lt 0 ]]; then
 		seconds="$((seconds * -1))"
+		sign=-
 	fi
 	if [[ "${minutes}" -lt 0 ]]; then
 		minutes="$((minutes * -1))"
+		sign=-
 	fi
 	if [[ "${hours}" -lt 0 ]]; then
 		hours="$((hours * -1))"
 		sign=-
-	else
-		sign=+
 	fi
 
 	printf "%s%02d:%02d:%02d\n" "${sign}" "${hours}" "${minutes}" "${seconds}"
