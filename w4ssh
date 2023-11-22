@@ -2,11 +2,8 @@
 
 set -euo pipefail
 
-host="${1}"
-export SSH_AUTH_SOCK="/run/user/$(id -u)/.ssh_socket"
-
-while ! ssh "${1}" :; do
+while ! ssh -o ConnectTimeout=5s -o ConnectionAttempts=1 "${@}" :; do
 	sleep 1
 done
 
-dunstify -a w4ssh "${host}'s ssh is available"
+dunstify -a w4ssh "${@: -1}'s ssh is available"
