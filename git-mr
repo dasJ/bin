@@ -12,6 +12,7 @@ if ! slug="$(git config --get gitlab.slug)"; then
 fi
 if ! token="$(git config --get gitlab.token)"; then
 	echo "You forgot to set gitlab.token" >&2
+	echo "The token needs the 'api' scope only" >&2
 	exit 1
 fi
 
