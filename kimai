@@ -6,7 +6,6 @@ shopt -s inherit_errexit
 # shellcheck source=/home/janne/.config/kimai
 . ~/.config/kimai
 # kimaiURL=
-# user=
 # token=
 # projectID=
 # activityID=
@@ -17,7 +16,7 @@ shopt -s inherit_errexit
 
 # Run an authenticated curl
 _curl() {
-	curl -sfH 'Content-Type: application/json' -H "X-AUTH-USER: ${user}" -H "X-AUTH-TOKEN: ${token}" "${@}"
+	curl -sfH 'Content-Type: application/json' -H "Authorization: Bearer ${token}" "${@}"
 }
 
 # Return the ID of the currently active timesheet or "" if
@@ -63,10 +62,7 @@ newTimesheet() {
 		{
 			"project": ${projectID},
 			"activity": ${activityID},
-			"description": "",
-			"exported": false,
-			"billable": true,
-			"tags": ""
+			"description": ""
 		}
 	EOF
 	)"
@@ -121,7 +117,6 @@ secondsToHuman() {
 }
 
 renderDaily() {
-	hoursPerDay="${hoursPerDay:-8}"
 	pagesize=100
 	start="$(date +%Y-%m-%dT00:00:00)"
 	end="$(date +%Y-%m-%dT%H:%M:%S)"
@@ -143,7 +138,8 @@ renderDaily() {
 		i="$((i + 1))"
 	done
 
-	daySeconds="$((hoursPerDay * 60 * 60))"
+	daySeconds="$(_curl -X GET "${kimaiURL}/api/users/me" | jq -r '.preferences[] | select(.name == "daily_working_time") | .value')"
+
 
 	echo "Only stopped timesheets are counted!"
 	echo "You should have worked $(secondsToHuman "${daySeconds}") by the end of this day"
